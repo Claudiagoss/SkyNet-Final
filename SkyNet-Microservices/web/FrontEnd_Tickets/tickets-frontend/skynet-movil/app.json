@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "skynet-movil",
+    "slug": "skynet-movil",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "entryPoint": "./App.js",
+    "icon": "./assets/images/icon.png",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0f13"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": { "supportsTablet": true },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundColor": "#0a0f13"
+      }
+    },
+    "web": { "favicon": "./assets/images/favicon.png" }
+  }
+}
