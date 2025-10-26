@@ -5,6 +5,8 @@ export default function Sidebar() {
   const nav = useNavigate();
   const user = getUser();
   const isAdmin = getRoleId() === 1;
+const isSupervisor = getRoleId() === 4;
+
 
   const logout = () => {
     clearAuth();
@@ -16,9 +18,15 @@ export default function Sidebar() {
       <div style={logoStyle}>⚙ SkyNet S. A.</div>
 
       <nav style={{ flex: 1, marginTop: 30 }}>
+          <SidebarLink to="/dashboard" icon="📈">Dashboard</SidebarLink> {/* 👈 NUEVO */}
         <SidebarLink to="/clientes" icon="👥">Clientes</SidebarLink>
         <SidebarLink to="/visitas" icon="📍">Visitas Activas</SidebarLink>
         <SidebarLink to="/historicokanban" icon="📊">Histórico Kanban</SidebarLink>
+        {(isAdmin || isSupervisor) && (
+  <SidebarLink to="/visitas-portecnico" icon="🧑‍🔧">
+    Visitas por Técnico
+  </SidebarLink>
+)}
         {isAdmin && <SidebarLink to="/usuarios" icon="🧑‍💼">Usuarios</SidebarLink>}
       </nav>
 

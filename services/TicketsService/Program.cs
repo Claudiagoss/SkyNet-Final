@@ -4,43 +4,78 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Tickets.Api;
 using Tickets.Api.EndPoints;
+using Tickets.Api.Perfiles;
+using Tickets.Api.Repositorios;
+using Tickets.Api.Servicios;
 
 var builder = WebApplication.CreateBuilder(args);
+var configuration = builder.Configuration;
 
-// ============================================================
-// 🔹 CONFIGURACIÓN DE BASE DE DATOS
-// ============================================================
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+// ===========================================
+// 🔹 Swagger
+// ===========================================
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-// ============================================================
-// 🔹 CONFIGURACIÓN JWT
-// ============================================================
-var jwtKey = builder.Configuration["Jwt:Key"];
-var jwtIssuer = builder.Configuration["Jwt:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"];
+// ===========================================
+// 🔹 Controllers
+// ===========================================
+builder.Services.AddControllers();
 
+// ===========================================
+// 🔹 DbContext
+// ===========================================
+// ⚠️ Solo cámbialo cuando tengamos lista la cadena SQL de Azure
+builder.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseSqlServer(configuration.GetConnectionString("Default")));
+
+// ===========================================
+// 🔹 AutoMapper
+// ===========================================
+builder.Services.AddAutoMapper(typeof(AutoMapperProfiles));
+
+// ===========================================
+// 🔹 Autenticación JWT
+// ===========================================
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var key = configuration["Jwt:Key"];
+        var issuer = configuration["Jwt:Issuer"];
+        var audience = configuration["Jwt:Audience"];
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!))
+            ValidIssuer = issuer,
+            ValidAudience = audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+            ClockSkew = TimeSpan.Zero
         };
     });
 
-// ============================================================
+// ===========================================
+// 🔹 Servicios y Repositorios
+// ===========================================
+builder.Services.AddScoped<IRepositorioTicket, RepositorioTicket>();
+builder.Services.AddScoped<IRepositorioComentario, RepositorioComentario>();
+builder.Services.AddScoped<IRepositorioCliente, RepositorioCliente>();
+builder.Services.AddScoped<IRepositorioCatalogos, RepositorioCatalogos>();
+builder.Services.AddHttpClient<IAuthClientService, AuthClientService>();
+builder.Services.AddScoped<IAsignacionService, AsignacionService>();
+builder.Services.AddScoped<IRepositorioAsignaciones, RepositorioAsignaciones>();
+builder.Services.AddScoped<IRepositorioCobertura, RepositorioCobertura>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+// ===========================================
 // 🔹 CORS
-// ============================================================
+// ===========================================
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("DevCors", policy =>
+    options.AddPolicy("AllowAll", policy =>
     {
         policy.AllowAnyOrigin()
               .AllowAnyHeader()
@@ -48,33 +83,40 @@ builder.Services.AddCors(options =>
     });
 });
 
-// ============================================================
-// 🔹 CONTROLADORES Y ENDPOINTS
-// ============================================================
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
 var app = builder.Build();
 
-// ============================================================
-// 🔹 PIPELINE HTTP
-// ============================================================
-if (app.Environment.IsDevelopment())
+// ===========================================
+// 🔹 Middlewares
+// ===========================================
+app.UseCors("AllowAll");
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+
+// ===========================================
+// 🔹 Swagger habilitado también en producción
+// ===========================================
+var enableSwagger = configuration.GetValue<bool>("EnableSwagger");
+if (app.Environment.IsDevelopment() || enableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseCors("DevCors");
-app.UseAuthentication();
-app.UseAuthorization();
+// ===========================================
+// 🔹 Endpoint raíz de prueba
+// ===========================================
+app.MapGet("/", () => Results.Ok("✅ Tickets.Api running on Azure"));
 
-// ============================================================
-// 🔹 MAPEO DE ENDPOINTS DE TICKETS
-// ============================================================
-app.MapGroup("/api")
-   .MapTickets()
-   .WithTags("Tickets API");
+// ===========================================
+// 🔹 Endpoints agrupados bajo /api
+// ===========================================
+var api = app.MapGroup("/api");
+api.MapTickets();
+api.MapComentarios();
+api.MapClientes();
+api.MapCatalogos();
+api.MapAsignaciones();
 
-// ============================================================
+app.MapControllers();
 app.Run();

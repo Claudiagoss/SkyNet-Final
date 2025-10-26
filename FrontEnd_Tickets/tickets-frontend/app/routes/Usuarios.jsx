@@ -1,7 +1,8 @@
-// ✅ app/routes/usuarios.jsx — CRUD Glass Dark completo con ConfirmModal al eliminar
-
-import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+// ✅ app/routes/Usuarios.jsx — CRUD Glass Dark con Reporte PDF incluido
+import { useState, useMemo, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   obtenerUsuarios,
   crearUsuario,
@@ -9,19 +10,22 @@ import {
   actualizarUsuario,
 } from "../api/usuariosApi";
 import ConfirmModal from "../../src/components/ConfirmModal.jsx";
-import { getAuth, getRoleId, getToken } from "../../app/utils/auth.js";
+import { getRoleId } from "../../app/utils/auth.js";
+import { toast } from "react-toastify";
 import "../../src/pages/VisitasGlass.css";
 
 export default function Usuarios() {
   const qc = useQueryClient();
   const roleId = getRoleId();
 
+  const [usuarios, setUsuarios] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [errors, setErrors] = useState({});
   const [globalError, setGlobalError] = useState("");
-
-  // 🔹 Nuevo estado para modal de confirmación
   const [showConfirm, setShowConfirm] = useState(false);
   const [usuarioToDelete, setUsuarioToDelete] = useState(null);
 
@@ -36,88 +40,103 @@ export default function Usuarios() {
     esActivo: true,
   });
 
-  const { data: usuariosRaw = [], isLoading, isError, error } = useQuery({
-    queryKey: ["usuarios"],
-    queryFn: obtenerUsuarios,
-  });
+  // ============================================================
+  // 🔹 Cargar lista de usuarios
+  // ============================================================
+  useEffect(() => {
+    refresh();
+  }, []);
 
-  const usuarios = useMemo(
-    () => (Array.isArray(usuariosRaw) ? usuariosRaw : []),
-    [usuariosRaw]
-  );
+  async function refresh() {
+    try {
+      setIsLoading(true);
+      const lista = await obtenerUsuarios();
+      setUsuarios(Array.isArray(lista) ? lista : []);
+    } catch (err) {
+      console.error("❌ Error cargando usuarios:", err);
+      setError("No se pudieron cargar los usuarios.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
-  // 🧩 Crear usuario
+  // ============================================================
+  // 🔹 Mutaciones CRUD
+  // ============================================================
   const mCreate = useMutation({
-    mutationFn: async (payload) => {
-      const token = getToken();
-      return crearUsuario(payload, token);
-    },
+    mutationFn: crearUsuario,
     onSuccess: async () => {
-      setErrors({});
-      setGlobalError("");
       await qc.invalidateQueries({ queryKey: ["usuarios"] });
+      await refresh();
       closeModal();
-    },
-    onError: (err) => {
-      console.error("❌ crearUsuario error:", err);
-      const data = err?.response?.data;
-
-      if (data?.field && data?.code === "duplicate") {
-        setErrors((prev) => ({
-          ...prev,
-          [data.field]: data.message || "Este valor ya está registrado",
-        }));
-      } else if (data?.message) {
-        setGlobalError(data.message);
-      } else {
-        setGlobalError("No se pudo crear el usuario. Verifica los datos.");
-      }
+      toast.success("✅ Usuario creado correctamente");
     },
   });
 
-  // 🧩 Actualizar usuario
   const mUpdate = useMutation({
-    mutationFn: async ({ id, payload }) => {
-      const token = getToken();
-      return actualizarUsuario(id, payload, token);
-    },
+    mutationFn: ({ id, payload }) => actualizarUsuario(id, payload),
     onSuccess: async () => {
-      setGlobalError("");
-      setErrors({});
       await qc.invalidateQueries({ queryKey: ["usuarios"] });
+      await refresh();
       closeModal();
-    },
-    onError: (err) => {
-      console.error("❌ actualizarUsuario error:", err);
-      const data = err?.response?.data;
-
-      if (data?.errors && Array.isArray(data.errors)) {
-        const newErrors = {};
-        data.errors.forEach((e) => {
-          if (e.field) newErrors[e.field] = e.message;
-        });
-        setErrors(newErrors);
-      } else if (data?.field && data?.code === "duplicate") {
-        setErrors((prev) => ({ ...prev, [data.field]: data.message }));
-      } else if (data?.message) {
-        setGlobalError(data.message);
-      } else {
-        setGlobalError("No se pudo procesar la solicitud.");
-      }
+      toast.success("✅ Usuario actualizado correctamente");
     },
   });
 
-  // 🧩 Eliminar usuario (mutación)
   const mDelete = useMutation({
-    mutationFn: async (id) => {
-      const token = getToken();
-      return borrarUsuario(id, token);
-    },
+    mutationFn: borrarUsuario,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["usuarios"] });
+      await refresh();
+      toast.info("🗑️ Usuario eliminado correctamente");
     },
   });
 
+  // ============================================================
+  // 🧾 Generar reporte PDF
+  // ============================================================
+  const generarPDF = () => {
+    if (!usuarios.length) {
+      toast.warn("⚠️ No hay usuarios para generar el reporte.");
+      return;
+    }
+
+    const doc = new jsPDF("landscape");
+    doc.setFontSize(16);
+    doc.text("Reporte de Usuarios — SkyNet S.A.", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 27);
+    doc.line(14, 30, 280, 30);
+
+    autoTable(doc, {
+      startY: 35,
+      head: [["ID", "Nombre", "Apellido", "Email", "Teléfono", "Rol", "Activo"]],
+      body: usuarios.map((u) => [
+        u.usuarioId,
+        u.nombre,
+        u.apellido,
+        u.email,
+        u.telefono || "—",
+        u.rolId === 1
+          ? "Administrador"
+          : u.rolId === 4
+          ? "Supervisor"
+          : u.rolId === 5
+          ? "Técnico"
+          : "Cliente",
+        u.esActivo ? "✅ Sí" : "❌ No",
+      ]),
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [0, 150, 255] },
+    });
+
+    doc.save(`Usuarios_SkyNet_${new Date().toISOString().slice(0, 10)}.pdf`);
+    toast.success("📄 Reporte PDF generado correctamente");
+  };
+
+  // ============================================================
+  // 🔹 Formularios y modales
+  // ============================================================
   function openCreate() {
     setEditing(null);
     setErrors({});
@@ -156,7 +175,6 @@ export default function Usuarios() {
     setModalOpen(false);
   }
 
-  // 🔹 Modal de confirmación al eliminar
   function handleDeleteClick(usuarioId) {
     setUsuarioToDelete(usuarioId);
     setShowConfirm(true);
@@ -179,7 +197,6 @@ export default function Usuarios() {
     setGlobalError("");
     setErrors({});
 
-    // Validar campos vacíos
     const required = ["nombre", "apellido", "email", "telefono", "username"];
     const newErrors = {};
     required.forEach((f) => {
@@ -195,8 +212,6 @@ export default function Usuarios() {
     }
 
     const payload = { ...form };
-
-    // ✅ Lógica de password en modo editar
     if (editing) {
       if (!form.password.trim()) {
         delete payload.password;
@@ -205,17 +220,19 @@ export default function Usuarios() {
         payload.passwordHash = form.password;
         delete payload.password;
       }
+      mUpdate.mutate({ id: editing.usuarioId, payload });
     } else {
       if (form.password.trim()) {
         payload.passwordHash = form.password;
         delete payload.password;
       }
+      mCreate.mutate(payload);
     }
-
-    if (editing) mUpdate.mutate({ id: editing.usuarioId, payload });
-    else mCreate.mutate(payload);
   }
 
+  // ============================================================
+  // 🔹 Render principal
+  // ============================================================
   if (roleId !== 1)
     return (
       <div className="vd-wrap" style={{ marginLeft: 230 }}>
@@ -233,18 +250,26 @@ export default function Usuarios() {
     <div className="vd-wrap" style={{ marginLeft: 0 }}>
       <div className="vd-lights" />
       <div className="vd-container">
+        {/* HEADER */}
         <header className="vd-head">
           <div className="vd-title">
             <span className="pin">🧑‍💼</span>
             <h2>Usuarios</h2>
           </div>
+
           <div className="vd-actions">
+            {/* 🧾 Botón de Reporte PDF */}
+            <button className="btn-pill glass" onClick={generarPDF}>
+              📄 Reporte PDF
+            </button>
+
             <button className="btn-pill primary" onClick={openCreate}>
               ✚ Nuevo usuario
             </button>
           </div>
         </header>
 
+        {/* TABLA */}
         <div className="vd-card glass">
           <div className="vd-table">
             <div className="vd-thead" style={{ gridTemplateColumns: gridCols }}>
@@ -258,14 +283,10 @@ export default function Usuarios() {
             </div>
 
             <div className="vd-tbody">
-              {isLoading && (
-                <div className="vd-empty">Cargando usuarios…</div>
-              )}
-              {isError && (
-                <div className="vd-empty">⚠ Error: {String(error)}</div>
-              )}
+              {isLoading && <div className="vd-empty">Cargando usuarios…</div>}
+              {error && <div className="vd-empty">⚠ {error}</div>}
               {!isLoading &&
-                !isError &&
+                !error &&
                 usuarios.map((u) => (
                   <div
                     key={u.usuarioId}
@@ -296,7 +317,7 @@ export default function Usuarios() {
                       <button
                         className="icon-btn glass-icon"
                         style={{ color: "#ffb4b4" }}
-                        onClick={() => handleDeleteClick(u.usuarioId)} // 👈 nuevo
+                        onClick={() => handleDeleteClick(u.usuarioId)}
                       >
                         🗑
                       </button>
@@ -308,7 +329,7 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* ✅ Modal Crear/Editar */}
+      {/* MODALES */}
       {modalOpen && (
         <ModalUsuario
           editing={editing}
@@ -321,7 +342,6 @@ export default function Usuarios() {
         />
       )}
 
-      {/* ✅ Modal de Confirmación */}
       <ConfirmModal
         open={showConfirm}
         message="¿Deseas eliminar este usuario permanentemente?"
@@ -332,7 +352,9 @@ export default function Usuarios() {
   );
 }
 
-// 🧩 Subcomponentes
+// ============================================================
+// 🔹 Subcomponentes UI
+// ============================================================
 function ModalUsuario({
   editing,
   form,
@@ -453,16 +475,10 @@ function ModalUsuario({
             </label>
           </div>
 
-          {globalError && (
-            <div className="glass-warning">{globalError}</div>
-          )}
+          {globalError && <div className="glass-warning">{globalError}</div>}
 
           <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <button
-              type="button"
-              className="btn-pill glass"
-              onClick={closeModal}
-            >
+            <button type="button" className="btn-pill glass" onClick={closeModal}>
               Cancelar
             </button>
             <button type="submit" className="btn-pill primary">

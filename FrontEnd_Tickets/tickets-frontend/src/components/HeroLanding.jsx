@@ -26,9 +26,7 @@ export default function HeroLanding() {
               🚀 Iniciar sesión
             </button>
 
-            <button className="btn-secondary">
-              👁 Ver demo →
-            </button>
+            
           </div>
         </div>
       </div>

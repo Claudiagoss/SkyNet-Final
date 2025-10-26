@@ -1,13 +1,17 @@
-// ✅ src/components/CreateVisitaModal.jsx
+// ============================================================
+// 🆕 CreateVisitaModal.jsx — Crear nueva visita técnica (SkyNet Frontend)
+// ============================================================
 import { useEffect, useState } from "react";
 import axios from "axios";
 import MapaSelector from "./MapaSelector.jsx";
 import { crearVisitaConCheckIn } from "../../app/api/ticketsApi.js";
 import { getToken } from "../../app/utils/auth.js";
+import { obtenerUsuarios } from "../../app/api/usuariosApi.js"; // ✅ Importa desde AuthService
 
 export default function CreateVisitaModal({ open, onClose, onCreated }) {
   const [clientes, setClientes] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
+  const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
     titulo: "",
@@ -20,30 +24,44 @@ export default function CreateVisitaModal({ open, onClose, onCreated }) {
   });
 
   const [coord, setCoord] = useState({ lat: null, lng: null });
-  const [saving, setSaving] = useState(false);
 
-  // ✅ Cargar combos cuando el modal abre
-  useEffect(() => {
-    if (!open) return;
-    const headers = {};
-    const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+  // ✅ Base URL dinámica para clientes (TicketsService)
+  const API_BASE =
+    import.meta.env.VITE_TICKETS_BASE_URL ||
+    "https://ticket-api-nueva-gcambrbedhawcaht.canadacentral-01.azurewebsites.net/api";
 
-    async function load() {
-      try {
-        const [c, u] = await Promise.all([
-          axios.get("http://localhost:5058/api/clientes", { headers }),
-          axios.get("http://localhost:5058/api/usuarios", { headers }).catch(() => ({ data: [] })),
-        ]);
-        setClientes(Array.isArray(c.data) ? c.data : []);
-        setUsuarios(Array.isArray(u.data) ? u.data : []);
-      } catch (e) {
-        console.error("Error cargando combos", e);
-      }
+  // ============================================================
+// 🔹 Cargar combos (Clientes del TicketsService y Técnicos del AuthService)
+// ============================================================
+useEffect(() => {
+  if (!open) return;
+
+  const authToken = getToken(); // ← cambio de nombre para evitar conflicto
+  const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+
+  async function load() {
+    try {
+      // 🧩 1. Cargar clientes (desde TicketsService)
+      const clientesRes = await axios.get(`${API_BASE}/clientes`, { headers });
+      const listaClientes = Array.isArray(clientesRes.data)
+        ? clientesRes.data
+        : [];
+      setClientes(listaClientes);
+
+      // 🧩 2. Cargar técnicos (desde AuthService) — SOLO rolId = 5
+      const tecnicos = await obtenerUsuarios(5);
+      setUsuarios(tecnicos);
+    } catch (e) {
+      console.error("❌ Error cargando combos:", e);
     }
-    load();
-  }, [open]);
+  }
 
+  load();
+}, [open]);
+
+  // ============================================================
+  // 🔹 Cerrar modal y resetear formulario
+  // ============================================================
   function close() {
     if (saving) return;
     onClose?.();
@@ -59,6 +77,9 @@ export default function CreateVisitaModal({ open, onClose, onCreated }) {
     setCoord({ lat: null, lng: null });
   }
 
+  // ============================================================
+  // 🔹 Enviar formulario (crear ticket + check-in)
+  // ============================================================
   async function submit(e) {
     e.preventDefault();
     if (!form.clienteId) return alert("Selecciona un cliente.");
@@ -69,8 +90,10 @@ export default function CreateVisitaModal({ open, onClose, onCreated }) {
       titulo: form.titulo,
       descripcion: form.descripcion,
       clienteId: Number(form.clienteId),
-      reportadoPorUsuarioId: auth?.usuarioId || 1, // Ajusta si backend devuelve otro campo
-      asignadoAUsuarioId: form.asignadoAUsuarioId ? Number(form.asignadoAUsuarioId) : null,
+      reportadoPorUsuarioId: auth?.usuarioId || 1,
+      asignadoAUsuarioId: form.asignadoAUsuarioId
+        ? Number(form.asignadoAUsuarioId)
+        : null,
       prioridadId: Number(form.prioridadId),
       estadoId: Number(form.estadoId),
       limiteEl: form.limiteEl || null,
@@ -78,12 +101,11 @@ export default function CreateVisitaModal({ open, onClose, onCreated }) {
 
     try {
       setSaving(true);
-      // ✅ Crear + Check-In automático
       await crearVisitaConCheckIn(payload, coord.lat, coord.lng);
-      onCreated?.(); // refresca lista
+      onCreated?.(); // refresca la lista
       close();
     } catch (err) {
-      console.error(err);
+      console.error("❌ Error creando visita:", err);
       alert("No se pudo crear la visita.");
     } finally {
       setSaving(false);
@@ -92,6 +114,9 @@ export default function CreateVisitaModal({ open, onClose, onCreated }) {
 
   if (!open) return null;
 
+  // ============================================================
+  // 💅 Render modal (Glass UI)
+  // ============================================================
   return (
     <div style={overlay} onClick={close}>
       <div style={modal} onClick={(e) => e.stopPropagation()}>
@@ -102,30 +127,57 @@ export default function CreateVisitaModal({ open, onClose, onCreated }) {
 
         <form onSubmit={submit} style={{ padding: 14 }}>
           <div className="grid-2">
+            {/* CLIENTE */}
             <div className="field">
               <label>Cliente *</label>
-              <select value={form.clienteId} onChange={(e) => setForm({ ...form, clienteId: e.target.value })} required>
+              <select
+                value={form.clienteId}
+                onChange={(e) => setForm({ ...form, clienteId: e.target.value })}
+                required
+              >
                 <option value="">— Selecciona —</option>
-                {clientes.map((c) => <option key={c.clienteId} value={c.clienteId}>{c.nombre}</option>)}
+                {clientes.map((c) => (
+                  <option key={c.clienteId} value={c.clienteId}>
+                    {c.nombre}
+                  </option>
+                ))}
               </select>
             </div>
 
+            {/* TÉCNICO */}
             <div className="field">
               <label>Técnico asignado</label>
-              <select value={form.asignadoAUsuarioId} onChange={(e) => setForm({ ...form, asignadoAUsuarioId: e.target.value })}>
+              <select
+                value={form.asignadoAUsuarioId}
+                onChange={(e) =>
+                  setForm({ ...form, asignadoAUsuarioId: e.target.value })
+                }
+              >
                 <option value="">— (opcional) —</option>
-                {usuarios.map((u) => <option key={u.usuarioId} value={u.usuarioId}>{u.nombre} {u.apellido}</option>)}
+                {usuarios.map((u) => (
+                  <option key={u.usuarioId} value={u.usuarioId}>
+                    👷 {u.nombre} {u.apellido}
+                  </option>
+                ))}
               </select>
             </div>
 
+            {/* RESTO DE CAMPOS */}
             <div className="field">
               <label>Título *</label>
-              <input value={form.titulo} onChange={(e) => setForm({ ...form, titulo: e.target.value })} required />
+              <input
+                value={form.titulo}
+                onChange={(e) => setForm({ ...form, titulo: e.target.value })}
+                required
+              />
             </div>
 
             <div className="field">
               <label>Prioridad</label>
-              <select value={form.prioridadId} onChange={(e) => setForm({ ...form, prioridadId: e.target.value })}>
+              <select
+                value={form.prioridadId}
+                onChange={(e) => setForm({ ...form, prioridadId: e.target.value })}
+              >
                 <option value={1}>Baja</option>
                 <option value={2}>Media</option>
                 <option value={3}>Alta</option>
@@ -134,17 +186,28 @@ export default function CreateVisitaModal({ open, onClose, onCreated }) {
 
             <div className="field field-100">
               <label>Descripción</label>
-              <textarea rows={3} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+              <textarea
+                rows={3}
+                value={form.descripcion}
+                onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+              />
             </div>
 
             <div className="field">
               <label>Fecha límite</label>
-              <input type="datetime-local" value={form.limiteEl} onChange={(e) => setForm({ ...form, limiteEl: e.target.value })} />
+              <input
+                type="datetime-local"
+                value={form.limiteEl}
+                onChange={(e) => setForm({ ...form, limiteEl: e.target.value })}
+              />
             </div>
 
             <div className="field">
               <label>Estado inicial</label>
-              <select value={form.estadoId} onChange={(e) => setForm({ ...form, estadoId: e.target.value })}>
+              <select
+                value={form.estadoId}
+                onChange={(e) => setForm({ ...form, estadoId: e.target.value })}
+              >
                 <option value={1}>Abierto</option>
                 <option value={2}>En Progreso</option>
                 <option value={3}>Resuelto</option>
@@ -153,13 +216,26 @@ export default function CreateVisitaModal({ open, onClose, onCreated }) {
             </div>
           </div>
 
+          {/* MAPA */}
           <div style={{ marginTop: 10 }}>
-            <label style={{ display: "block", marginBottom: 6 }}>Ubicación (clic en el mapa)</label>
+            <label style={{ display: "block", marginBottom: 6 }}>
+              Ubicación (clic en el mapa)
+            </label>
             <MapaSelector value={coord} onChange={setCoord} height={300} />
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
-            <button type="button" style={btnGhost} onClick={close} disabled={saving}>Cancelar</button>
+          {/* BOTONES */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 10,
+              marginTop: 14,
+            }}
+          >
+            <button type="button" style={btnGhost} onClick={close} disabled={saving}>
+              Cancelar
+            </button>
             <button type="submit" style={btnPrimary} disabled={saving}>
               {saving ? "Creando…" : "Crear visita"}
             </button>

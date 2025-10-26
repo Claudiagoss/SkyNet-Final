@@ -1,10 +1,17 @@
-// app/api/authApi.js
-import axios from "axios";
-
-const BASE_URL = "http://localhost:5090/api/auth";
+// =============================================================
+// 🔐 AUTH API — SkyNet Frontend
+// =============================================================
+import { authApi } from "../config/axios";
+import { isAxiosError } from "axios";
 
 export const login = async ({ username, password }) => {
-  const { data } = await axios.post(`${BASE_URL}/login`, { username, password });
-  // data = { token, usuario, rol }
-  return data;
+  try {
+    const { data } = await authApi.post("/auth/login", { username, password });
+    return data; // { token, usuario, rol }
+  } catch (e) {
+    console.error("❌ Error en login:", e);
+    if (isAxiosError(e) && e.response)
+      throw new Error(e.response.data?.message || "Error al iniciar sesión");
+    throw e;
+  }
 };

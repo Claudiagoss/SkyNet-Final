@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models; // 👈 agregado
 using System.Text;
 using Tickets.Api;
 using Tickets.Api.EndPoints;
@@ -12,17 +13,57 @@ var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
 // ===========================================
-// 🔹 Configuración general
+// 🔹 Cargar configuración (appsettings.json + variables de entorno Azure)
 // ===========================================
 configuration
     .SetBasePath(Directory.GetCurrentDirectory())
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables(); // ✅ Azure siempre sobreescribe lo que haya en JSON
 
 // ===========================================
-// 🔹 Swagger
+// 🔹 Swagger con Autorización JWT
 // ===========================================
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "SkyNet Tickets API",
+        Version = "v1",
+        Description = "Microservicio de gestión de tickets técnicos (SkyNet S.A.)",
+        Contact = new OpenApiContact
+        {
+            Name = "Soporte SkyNet",
+            Email = "skynetsoportesa@gmail.com"
+        }
+    });
+
+    // 👇 botón Authorize y esquema Bearer
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Ingrese su token JWT. Ejemplo: **Bearer {token}**",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 // ===========================================
 // 🔹 Controllers
@@ -30,10 +71,15 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 
 // ===========================================
-// 🔹 DbContext
+// 🔹 Base de datos SQL Azure
 // ===========================================
 builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+{
+    var conn = configuration.GetConnectionString("Default");
+    if (string.IsNullOrEmpty(conn))
+        throw new Exception("❌ No se encontró la cadena de conexión 'Default' en configuración.");
+    opt.UseSqlServer(conn);
+});
 
 // ===========================================
 // 🔹 AutoMapper
@@ -41,7 +87,7 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
 builder.Services.AddAutoMapper(typeof(AutoMapperProfiles));
 
 // ===========================================
-// 🔹 Autenticación JWT (Tokens del AuthService)
+// 🔹 Autenticación JWT
 // ===========================================
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -50,20 +96,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         var issuer = configuration["Jwt:Issuer"];
         var audience = configuration["Jwt:Audience"];
 
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.WriteLine("===== VERIFICANDO CONFIGURACIÓN JWT =====");
-        Console.WriteLine($"Jwt:Key -> {key}");
-        Console.WriteLine($"Jwt:Issuer -> {issuer}");
-        Console.WriteLine($"Jwt:Audience -> {audience}");
-        Console.ResetColor();
-
         if (string.IsNullOrEmpty(key))
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("❌ ERROR: No se encontró Jwt:Key en appsettings.json");
-            Console.ResetColor();
-            throw new Exception("JWT Key missing in configuration");
-        }
+            throw new Exception("❌ JWT Key missing in configuration");
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -71,10 +105,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = "SkyNetAuthServer",        // 👈 Fijo para todos los microservicios
-            ValidAudience = "SkyNetApiClients",      // 👈 Fijo para todos los microservicios
+            ValidIssuer = issuer ?? "SkyNetAuthServer",
+            ValidAudience = audience ?? "SkyNetApiClients",
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes("skynet-super-secret-key-2025-ultimate-strong-secret!!")
+                Encoding.UTF8.GetBytes(key)
             ),
             ClockSkew = TimeSpan.Zero
         };
@@ -88,8 +122,6 @@ builder.Services.AddScoped<IRepositorioComentario, RepositorioComentario>();
 builder.Services.AddScoped<IRepositorioCliente, RepositorioCliente>();
 builder.Services.AddScoped<IRepositorioCatalogos, RepositorioCatalogos>();
 builder.Services.AddHttpClient<IAuthClientService, AuthClientService>();
-
-//builder.Services.AddScoped<IRepositorioUsuario, RepositorioUsuario>();
 builder.Services.AddScoped<IAsignacionService, AsignacionService>();
 builder.Services.AddScoped<IRepositorioAsignaciones, RepositorioAsignaciones>();
 builder.Services.AddScoped<IRepositorioCobertura, RepositorioCobertura>();
@@ -100,36 +132,44 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 // ===========================================
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
-    });
+    options.AddPolicy("SkyNetCors", policy =>
+        policy
+            .SetIsOriginAllowed(origin =>
+                new[]
+                {
+                    "https://claudiagosskynet.netlify.app",
+                    "https://cosmic-sfogliatella-c14f60.netlify.app",
+                    "https://euphonious-lokum-0e10c5.netlify.app",
+                    "http://localhost:5173"
+                }.Contains(origin)
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+    );
 });
 
 var app = builder.Build();
 
 // ===========================================
-// 🔹 URL de escucha (LAN / local)
+// 🔹 Middleware principal
 // ===========================================
-app.Urls.Add("http://0.0.0.0:5058");
-
-// ===========================================
-// 🔹 Middlewares principales
-// ===========================================
-app.UseCors("AllowAll");
+app.UseCors("SkyNetCors");
 app.UseHttpsRedirection();
-app.UseAuthentication();   // 👈 OBLIGATORIO antes de UseAuthorization
+app.UseAuthentication();
 app.UseAuthorization();
 
 // ===========================================
-// 🔹 Swagger solo en desarrollo
+// 🔹 Swagger (mantiene tu condición original)
 // ===========================================
-if (app.Environment.IsDevelopment())
+if (configuration["EnableSwagger"]?.ToLower() == "true" || app.Environment.IsProduction())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "SkyNet Tickets API v1");
+        // Mantengo tu configuración de ruta
+    });
 }
 
 // ===========================================
@@ -140,18 +180,20 @@ api.MapTickets();
 api.MapComentarios();
 api.MapClientes();
 api.MapCatalogos();
-//api.MapUsuarios();
 api.MapAsignaciones();
-api.MapUsuariosAuth(); // ✅ Nuevo endpoint que llama al AuthService
-
 
 // ===========================================
-// 🚀 Seed inicial (usuarios de prueba)
+// 🔹 Endpoint raíz "/" para Azure
 // ===========================================
+app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
+// ===========================================
+// 🔹 Logging y diagnósticos para Azure
+// ===========================================
+Directory.CreateDirectory(Path.Combine(Directory.GetCurrentDirectory(), "logs"));
 
 // ===========================================
 // 🚀 Ejecutar la API
-// ===========================================
+// ===========================================IRepositorioUsuario
 app.MapControllers();
 app.Run();

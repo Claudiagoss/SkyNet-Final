@@ -119,17 +119,7 @@ public static class TicketEndpoint
 
         var dto = mapper.Map<GetAllTicketsDTO>(entidad);
         var cliente = await repoCli.ObtenerPorId(entidad.ClienteId);
-        Dictionary<int, string> usuarios;
-try
-{
-    usuarios = await authClient.ObtenerDiccionarioUsuariosAsync();
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"⚠️ No se pudieron obtener usuarios del AuthService: {ex.Message}");
-    usuarios = new Dictionary<int, string>();
-}
-
+        var usuarios = await authClient.ObtenerDiccionarioUsuariosAsync();
 
         dto.ClienteNombre = cliente?.Nombre;
 
@@ -285,59 +275,42 @@ catch (Exception ex)
         return TypedResults.Ok(result);
     }
 
-   // ================================================================
-// 🔹 VISITAS COMPLETADAS — versión robusta con manejo de errores
-// ================================================================
-static async Task<Ok<List<VisitaCompletadaDTO>>> VisitasCompletadas(
-    HttpContext context,
-    IRepositorioTicket repo,
-    IRepositorioCliente repoCli,
-    IAuthClientService authClient)
-{
-    var usuarioId = JwtHelper.ObtenerUsuarioId(context);
-    var rolId = JwtHelper.ObtenerRolId(context);
-
-    // 🔹 Filtrar tickets con salida registrada
-    var tickets = (await repo.ObtenerTodos())
-        .Where(t => t.HoraSalida != null)
-        .OrderByDescending(t => t.HoraSalida)
-        .ToList();
-
-    // 🔹 Si es técnico, solo sus tickets
-    if (rolId == 5)
-        tickets = tickets.Where(t => t.AsignadoAUsuarioId == usuarioId).ToList();
-
-    // 🔹 Obtener catálogos
-    var clientes = (await repoCli.ObtenerTodos())
-        .ToDictionary(x => x.ClienteId, x => x.Nombre ?? "Desconocido");
-
-    // ⚠️ Intentar obtener usuarios del AuthService de forma segura
-    Dictionary<int, string> usuarios;
-    try
+    // ================================================================
+    // 🔹 VISITAS COMPLETADAS
+    // ================================================================
+    static async Task<Ok<List<VisitaCompletadaDTO>>> VisitasCompletadas(
+        HttpContext context, IRepositorioTicket repo,
+        IRepositorioCliente repoCli, IAuthClientService authClient)
     {
-        usuarios = await authClient.ObtenerDiccionarioUsuariosAsync();
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"⚠️ No se pudieron obtener usuarios del AuthService: {ex.Message}");
-        usuarios = new Dictionary<int, string>();
+        var usuarioId = JwtHelper.ObtenerUsuarioId(context);
+        var rolId = JwtHelper.ObtenerRolId(context);
+
+        var tickets = (await repo.ObtenerTodos())
+            .Where(t => t.HoraSalida != null)
+            .OrderByDescending(t => t.HoraSalida)
+            .ToList();
+
+        if (rolId == 5)
+            tickets = tickets.Where(t => t.AsignadoAUsuarioId == usuarioId).ToList();
+
+        var clientes = (await repoCli.ObtenerTodos())
+            .ToDictionary(x => x.ClienteId, x => x.Nombre ?? "Desconocido");
+        var usuarios = await authClient.ObtenerDiccionarioUsuariosAsync();
+
+        var result = tickets.Select(t => new VisitaCompletadaDTO
+        {
+            TicketId = t.TicketId,
+            Cliente = clientes.GetValueOrDefault(t.ClienteId, "Desconocido"),
+            Tecnico = usuarios.GetValueOrDefault<int, string>(t.AsignadoAUsuarioId ?? 0, "Sin asignar"),
+            FechaLimite = t.LimiteEl,
+            HoraIngreso = t.HoraIngreso,
+            HoraSalida = t.HoraSalida,
+            ReporteFinal = t.ReporteFinal
+        }).ToList();
+
+        return TypedResults.Ok(result);
     }
 
-    // 🔹 Construir resultado
-    var result = tickets.Select(t => new VisitaCompletadaDTO
-    {
-        TicketId = t.TicketId,
-        Cliente = clientes.GetValueOrDefault(t.ClienteId, "Desconocido"),
-        Tecnico = usuarios.GetValueOrDefault<int, string>(t.AsignadoAUsuarioId ?? 0, "Sin asignar"),
-        FechaLimite = t.LimiteEl,
-        HoraIngreso = t.HoraIngreso,
-        HoraSalida = t.HoraSalida,
-        ReporteFinal = t.ReporteFinal
-    }).ToList();
-
-    Console.WriteLine($"📜 Historial generado correctamente: {result.Count} visitas completadas.");
-    return TypedResults.Ok(result);
-}
     // ================================================================
     // 🔹 VISITAS POR TÉCNICO
     // ================================================================

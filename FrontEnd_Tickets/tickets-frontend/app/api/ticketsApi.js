@@ -1,11 +1,9 @@
-// ✅ app/api/ticketsApi.js — versión final optimizada y robusta
+// ================================================================
+// 🎫 TICKETS API — SkyNet (Frontend → TicketsService .NET 8)
+// ================================================================
 import axios from "axios";
 import { getToken } from "../utils/auth.js";
-
-// ================================================================
-// 🔹 Configuración base
-// ================================================================
-const API_URL = "http://localhost:5058/api/tickets";
+import { ticketsApi } from "../config/axios";
 
 // ================================================================
 // 🔹 Helper para encabezados de autorización
@@ -29,21 +27,20 @@ function handleError(error, action = "operación") {
 }
 
 // ================================================================
-// === CRUD PRINCIPAL ===
+// === CRUD PRINCIPAL DE TICKETS ===
 // ================================================================
 export const obtenerTickets = async () => {
   try {
-    const res = await axios.get(API_URL, { headers: getHeaders() });
-    return res.data; // 👈 en lugar de { ok: true, data: res.data }
+    const res = await ticketsApi.get("/tickets", { headers: getHeaders() });
+    return res.data;
   } catch (err) {
-    handleError(err, "obtener tickets");
-    return [];
+    return handleError(err, "obtener tickets");
   }
 };
 
 export const obtenerTicketPorId = async (id) => {
   try {
-    const res = await axios.get(`${API_URL}/${id}`, { headers: getHeaders() });
+    const res = await ticketsApi.get(`/tickets/${id}`, { headers: getHeaders() });
     return { ok: true, data: res.data };
   } catch (err) {
     return handleError(err, `obtener ticket #${id}`);
@@ -52,7 +49,7 @@ export const obtenerTicketPorId = async (id) => {
 
 export const crearTicket = async (nuevoTicket) => {
   try {
-    const res = await axios.post(API_URL, nuevoTicket, { headers: getHeaders() });
+    const res = await ticketsApi.post("/tickets", nuevoTicket, { headers: getHeaders() });
     return { ok: true, data: res.data };
   } catch (err) {
     return handleError(err, "crear ticket");
@@ -61,7 +58,7 @@ export const crearTicket = async (nuevoTicket) => {
 
 export const actualizarTicket = async (id, datos) => {
   try {
-    const res = await axios.put(`${API_URL}/${id}`, datos, { headers: getHeaders() });
+    const res = await ticketsApi.put(`/tickets/${id}`, datos, { headers: getHeaders() });
     return { ok: true, data: res.data };
   } catch (err) {
     return handleError(err, `actualizar ticket #${id}`);
@@ -70,7 +67,7 @@ export const actualizarTicket = async (id, datos) => {
 
 export const eliminarTicket = async (id) => {
   try {
-    const res = await axios.delete(`${API_URL}/${id}`, { headers: getHeaders() });
+    const res = await ticketsApi.delete(`/tickets/${id}`, { headers: getHeaders() });
     return { ok: true, data: res.data };
   } catch (err) {
     return handleError(err, `eliminar ticket #${id}`);
@@ -82,9 +79,7 @@ export const eliminarTicket = async (id) => {
 // ================================================================
 export const cerrarTicket = async (ticketId) => {
   try {
-    const res = await axios.put(`${API_URL}/${ticketId}/cerrar`, {}, { headers: getHeaders() });
-
-    // 🧠 El backend devuelve: { mensaje, cliente, correo }
+    const res = await ticketsApi.put(`/tickets/${ticketId}/cerrar`, {}, { headers: getHeaders() });
     const data = res.data;
     return {
       ok: true,
@@ -102,18 +97,16 @@ export const cerrarTicket = async (ticketId) => {
 // ================================================================
 export const obtenerVisitasActivas = async () => {
   try {
-    const res = await axios.get(`${API_URL}/visitas/activas`, { headers: getHeaders() });
-    return res.data; // 👈 directamente el array
+    const res = await ticketsApi.get("/tickets/visitas/activas", { headers: getHeaders() });
+    return res.data;
   } catch (err) {
-    handleError(err, "obtener visitas activas");
-    return [];
+    return handleError(err, "obtener visitas activas");
   }
 };
 
-
 export const obtenerVisitasCompletadas = async () => {
   try {
-    const res = await axios.get(`${API_URL}/visitas/completadas`, { headers: getHeaders() });
+    const res = await ticketsApi.get("/tickets/visitas/completadas", { headers: getHeaders() });
     return { ok: true, data: res.data };
   } catch (err) {
     return handleError(err, "obtener visitas completadas");
@@ -130,7 +123,7 @@ export const checkInVisita = async (ticketId, lat, lng) => {
       latitudIngreso: lat,
       longitudIngreso: lng,
     };
-    const res = await axios.post(`${API_URL}/${ticketId}/checkin`, payload, {
+    const res = await ticketsApi.post(`/tickets/${ticketId}/checkin`, payload, {
       headers: getHeaders(),
     });
     return { ok: true, message: res.data };
@@ -146,7 +139,7 @@ export const checkOutVisita = async (ticketId, lat, lng, reporteFinal = "") => {
       longitudSalida: lng,
       reporteFinal,
     };
-    const res = await axios.post(`${API_URL}/${ticketId}/checkout`, payload, {
+    const res = await ticketsApi.post(`/tickets/${ticketId}/checkout`, payload, {
       headers: getHeaders(),
     });
     return { ok: true, message: res.data };
@@ -156,16 +149,17 @@ export const checkOutVisita = async (ticketId, lat, lng, reporteFinal = "") => {
 };
 
 // ================================================================
-// === CAMBIAR ESTADO MANUAL (sin cerrar) ===
+// === CAMBIAR ESTADO MANUAL (sin cerrar ticket) ===
 // ================================================================
 export const cambiarEstadoTicket = async (id, estadoId) => {
   try {
-    const res = await axios.put(`${API_URL}/${id}`, { estadoId }, { headers: getHeaders() });
+    const res = await ticketsApi.put(`/tickets/${id}`, { estadoId }, { headers: getHeaders() });
     return { ok: true, data: res.data };
   } catch (err) {
     return handleError(err, `cambiar estado del ticket #${id}`);
   }
 };
+
 // ================================================================
 // === CREAR VISITA CON CHECK-IN AUTOMÁTICO ===
 // ================================================================
@@ -189,3 +183,17 @@ export const crearVisitaConCheckIn = async (ticketPayload, lat, lng) => {
   }
 };
 
+
+// ================================================================
+// === OBTENER TICKETS POR TÉCNICO (para Admin / Supervisor) ===
+// ================================================================
+export const obtenerTicketsPorTecnico = async (usuarioId) => {
+  try {
+    const res = await ticketsApi.get(`/tickets/por-tecnico/${usuarioId}`, {
+      headers: getHeaders(),
+    });
+    return { ok: true, data: res.data };
+  } catch (err) {
+    return handleError(err, `obtener tickets del técnico #${usuarioId}`);
+  }
+};

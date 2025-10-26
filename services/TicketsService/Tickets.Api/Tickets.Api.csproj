@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Desactiva los elementos de contenido automáticos -->
     <EnableDefaultContentItems>false</EnableDefaultContentItems>
+    <!-- ✅ Recomendado para Azure -->
+    <PublishWithAspNetCoreTargetManifest>false</PublishWithAspNetCoreTargetManifest>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,17 +22,15 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
   </ItemGroup>
 
-  <!-- 🔹 Asegura que el appsettings.json se copie al build -->
+  <!-- 🔹 Copia de configuración -->
   <ItemGroup>
     <Content Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
-
   <ItemGroup>
     <Compile Remove="Legacy\**\*.cs" />
     <None Include="Legacy\**\*.cs" />
   </ItemGroup>
-
 </Project>

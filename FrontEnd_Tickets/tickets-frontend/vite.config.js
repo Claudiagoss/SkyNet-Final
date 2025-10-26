@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+  includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
         name: 'SkyNet S.A.',
         short_name: 'SkyNet',
@@ -36,8 +36,15 @@ export default defineConfig({
           },
         ],
       },
-    }),
+      devOptions: {
+    enabled: true, // te permite probar el PWA en modo dev
+  },
+  workbox: {
+    navigateFallback: '/index.html', // 🔹 Importante en SPA (React Router)
+  },
+}),
   ],
+  base: '/', // 🔹 necesario para rutas limpias en Azure
   server: {
     host: '0.0.0.0',
     port: 5173,

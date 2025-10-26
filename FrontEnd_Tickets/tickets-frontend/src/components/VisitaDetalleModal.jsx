@@ -1,26 +1,34 @@
-// ✅ src/components/VisitaDetalleModal.jsx (LIMPIO sin "Hora de Ingreso")
+// ============================================================
+// 🎫 VisitaDetalleModal.jsx — Detalle del Ticket (SkyNet Frontend)
+// ============================================================
 import { useEffect, useState } from "react";
 
 export default function VisitaDetalleModal({ ticketId, onClose }) {
   const [data, setData] = useState(null);
 
-  // ✅ Obtener token
+  // ✅ Token del usuario
   const auth = localStorage.getItem("auth");
   const token = auth ? JSON.parse(auth).token : null;
+
+  // ✅ URL base del backend (Azure o variable .env)
+  const API_BASE =
+    import.meta.env.VITE_TICKETS_BASE_URL ||
+    "https://skynet-ticketapi-eyd8aaa8hzb0crdh.canadacentral-01.azurewebsites.net/api";
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch(`http://localhost:5058/api/tickets/${ticketId}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        const res = await fetch(`${API_BASE}/tickets/${ticketId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const json = await res.json();
         setData(json);
       } catch (err) {
-        console.error("Error cargando detalles:", err);
+        console.error("❌ Error cargando detalles del ticket:", err);
       }
     }
-    fetchData();
+
+    if (ticketId) fetchData();
   }, [ticketId]);
 
   if (!data) return null;
@@ -28,7 +36,6 @@ export default function VisitaDetalleModal({ ticketId, onClose }) {
   return (
     <div style={overlay} onClick={onClose}>
       <div style={modal} onClick={(e) => e.stopPropagation()}>
-        
         {/* Header */}
         <div style={header}>
           <div>
@@ -41,20 +48,41 @@ export default function VisitaDetalleModal({ ticketId, onClose }) {
           </div>
 
           {/* Botón cerrar */}
-          <button style={btnClose} onClick={onClose}>✕</button>
+          <button style={btnClose} onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         {/* Contenido */}
-        <div style={{ padding: "16px" }}>
-          <p><strong>📌 Estado:</strong> <Badge color={data.estado === "En Progreso" ? "#facc15" : "#4ade80"}>{data.estado}</Badge></p>
-          <p><strong>⚠ Prioridad:</strong> <Badge color={data.prioridad === "Alta" ? "#ef4444" : "#3b82f6"}>{data.prioridad}</Badge></p>
+        <div style={{ padding: "16px", color: "#e6edf3" }}>
+          <p>
+            <strong>📌 Estado:</strong>{" "}
+            <Badge
+              color={data.estado === "En Progreso" ? "#facc15" : "#4ade80"}
+            >
+              {data.estado}
+            </Badge>
+          </p>
+          <p>
+            <strong>⚠ Prioridad:</strong>{" "}
+            <Badge color={data.prioridad === "Alta" ? "#ef4444" : "#3b82f6"}>
+              {data.prioridad}
+            </Badge>
+          </p>
 
           {data.descripcion && (
-            <p><strong>📝 Descripción:</strong><br />{data.descripcion}</p>
+            <p>
+              <strong>📝 Descripción:</strong>
+              <br />
+              {data.descripcion}
+            </p>
           )}
 
           {data.limiteEl && (
-            <p><strong>⏳ Fecha Límite:</strong> {new Date(data.limiteEl).toLocaleString()}</p>
+            <p>
+              <strong>⏳ Fecha Límite:</strong>{" "}
+              {new Date(data.limiteEl).toLocaleString()}
+            </p>
           )}
         </div>
       </div>
@@ -62,23 +90,29 @@ export default function VisitaDetalleModal({ ticketId, onClose }) {
   );
 }
 
-// Etiqueta visual
+// ============================================================
+// 🧩 Componente visual de etiqueta (Badge)
+// ============================================================
 function Badge({ color, children }) {
   return (
-    <span style={{
-      background: color,
-      color: "#111",
-      padding: "2px 8px",
-      borderRadius: "6px",
-      fontWeight: 600,
-      fontSize: 12
-    }}>
+    <span
+      style={{
+        background: color,
+        color: "#111",
+        padding: "2px 8px",
+        borderRadius: "6px",
+        fontWeight: 600,
+        fontSize: 12,
+      }}
+    >
       {children}
     </span>
   );
 }
 
-/* ==== Estilos inline estilo Glass UI ==== */
+// ============================================================
+// 💅 Estilos Glass UI
+// ============================================================
 const overlay = {
   position: "fixed",
   inset: 0,
@@ -89,15 +123,18 @@ const overlay = {
   zIndex: 9999,
   padding: 16,
 };
+
 const modal = {
   width: "100%",
   maxWidth: 600,
-  background: "radial-gradient(100% 100% at 50% 0%, #14181c 0%, #171c21 100%)",
+  background:
+    "radial-gradient(100% 100% at 50% 0%, #14181c 0%, #171c21 100%)",
   border: "1px solid #26313b",
   borderRadius: 16,
   boxShadow: "0 20px 80px rgba(0,0,0,.5)",
   overflow: "hidden",
 };
+
 const header = {
   display: "flex",
   alignItems: "center",
@@ -106,6 +143,7 @@ const header = {
   borderBottom: "1px solid #26313b",
   color: "#e6edf3",
 };
+
 const btnClose = {
   width: 34,
   height: 34,

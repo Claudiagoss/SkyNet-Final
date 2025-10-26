@@ -1,6 +1,8 @@
-// ✅ app/routes/clientes.jsx — Glass UI FINAL (sin columnas de coordenadas y mapa funcional)
+// ✅ app/routes/clientes.jsx — Glass UI FINAL con Reporte PDF incluido
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   obtenerClientes,
   crearCliente,
@@ -11,6 +13,7 @@ import { getAuth, getRoleId, getToken } from "../../app/utils/auth.js";
 import MapaSelector from "../../src/components/MapaSelector.jsx";
 import MapaModal from "../../src/components/MapaModal.jsx";
 import ConfirmModal from "../../src/components/ConfirmModal.jsx";
+import { toast } from "react-toastify";
 import "../../src/pages/VisitasGlass.css";
 
 const PAGE_SIZE = 10;
@@ -51,6 +54,7 @@ export default function Clientes() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["clientes"] });
       closeModal();
+      toast.success("✅ Cliente creado correctamente");
     },
   });
 
@@ -60,6 +64,7 @@ export default function Clientes() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["clientes"] });
       closeModal();
+      toast.success("✅ Cliente actualizado correctamente");
     },
   });
 
@@ -67,6 +72,7 @@ export default function Clientes() {
     mutationFn: async (id) => borrarCliente(id, getToken()),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["clientes"] });
+      toast.info("🗑️ Cliente eliminado correctamente");
     },
   });
 
@@ -133,7 +139,45 @@ export default function Clientes() {
     else mCreate.mutate(payload);
   }
 
-  // 🧮 Simplificamos la tabla (sin columnas de lat/long)
+  // ============================================================
+  // 🧾 Generar reporte PDF
+  // ============================================================
+  const generarPDF = () => {
+    if (!clientes.length) {
+      toast.warn("⚠️ No hay clientes para generar el reporte.");
+      return;
+    }
+
+    const doc = new jsPDF("landscape");
+    doc.setFontSize(16);
+    doc.text("Reporte de Clientes — SkyNet S.A.", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 27);
+    doc.line(14, 30, 280, 30);
+
+    autoTable(doc, {
+      startY: 35,
+      head: [["ID", "Nombre", "Contacto", "Email", "Teléfono", "Dirección", "Notas"]],
+      body: clientes.map((c) => [
+        c.clienteId,
+        c.nombre || "—",
+        c.contacto || "—",
+        c.email || "—",
+        c.telefono || "—",
+        c.direccion || "—",
+        c.notas?.slice(0, 40) || "—",
+      ]),
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [0, 150, 255] },
+    });
+
+    doc.save(`Clientes_SkyNet_${new Date().toISOString().slice(0, 10)}.pdf`);
+    toast.success("📄 Reporte PDF generado correctamente");
+  };
+
+  // ============================================================
+  // 🔹 Configuración visual
+  // ============================================================
   const gridCols = "70px 1.3fr 1fr 1.3fr 1fr 1.5fr 140px";
 
   const canCreate =
@@ -153,6 +197,9 @@ export default function Clientes() {
     });
   }
 
+  // ============================================================
+  // 🔹 Render principal
+  // ============================================================
   return (
     <>
       <div className="vd-wrap" style={{ marginLeft: 230 }}>
@@ -166,7 +213,16 @@ export default function Clientes() {
             </div>
 
             <div className="vd-actions" style={{ gap: 10 }}>
-              <div className="btn-pill glass" style={{ padding: 0, display: "flex", alignItems: "center" }}>
+              {/* 🧾 Nuevo botón de Reporte PDF */}
+              <button className="btn-pill glass" onClick={generarPDF}>
+                📄 Reporte PDF
+              </button>
+
+              {/* 🔍 Búsqueda */}
+              <div
+                className="btn-pill glass"
+                style={{ padding: 0, display: "flex", alignItems: "center" }}
+              >
                 <span style={{ paddingLeft: 12 }}>🔎</span>
                 <input
                   placeholder="Buscar cliente..."
@@ -183,6 +239,8 @@ export default function Clientes() {
                   }}
                 />
               </div>
+
+              {/* ✚ Nuevo cliente */}
               {canCreate && (
                 <button className="btn-pill primary" onClick={openCreate}>
                   ✚ Nuevo cliente
@@ -225,7 +283,6 @@ export default function Clientes() {
                       <div className="td">{c.direccion}</div>
 
                       <div className="td" style={{ display: "flex", gap: 8 }}>
-                        {/* 📍 Ver mapa */}
                         <button
                           className="icon-btn glass-icon"
                           title="Ver mapa"
@@ -233,8 +290,6 @@ export default function Clientes() {
                         >
                           📍
                         </button>
-
-                        {/* ✏️ Editar */}
                         <button
                           className="icon-btn glass-icon"
                           title="Editar"
@@ -242,8 +297,6 @@ export default function Clientes() {
                         >
                           ✏️
                         </button>
-
-                        {/* 🗑️ Eliminar */}
                         <button
                           className="icon-btn glass-icon"
                           title="Eliminar"
@@ -277,68 +330,13 @@ export default function Clientes() {
 
       {/* ✏️ MODAL FORMULARIO */}
       {modalOpen && (
-        <div
-          onClick={closeModal}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background:
-              "radial-gradient(1000px 800px at 20% 10%, rgba(0,153,255,.10), transparent 60%), radial-gradient(900px 700px at 80% 20%, rgba(140,70,255,.10), transparent 65%), rgba(2,8,15,0.65)",
-            backdropFilter: "blur(10px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 460,
-              borderRadius: 16,
-              border: "1px solid rgba(120,180,255,.22)",
-              background:
-                "linear-gradient(180deg, rgba(23,30,40,.82), rgba(18,25,33,.78))",
-              boxShadow:
-                "0 22px 48px rgba(0,0,0,.55), 0 0 36px rgba(0,170,255,.18)",
-              padding: 18,
-            }}
-          >
-            <h3 style={{ color: "#e8f2ff", fontWeight: 800, marginBottom: 14 }}>
-              {editing ? "Editar Cliente" : "Nuevo Cliente"}
-            </h3>
-
-            <form onSubmit={submitModal} style={{ display: "grid", gap: 10 }}>
-              <GlassInput placeholder="Nombre" value={form.nombre} onChange={(v) => setForm({ ...form, nombre: v })} />
-              <GlassInput placeholder="Contacto" value={form.contacto} onChange={(v) => setForm({ ...form, contacto: v })} />
-              <GlassInput placeholder="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-              <GlassInput placeholder="Teléfono" value={form.telefono} onChange={(v) => setForm({ ...form, telefono: v })} />
-              <GlassInput placeholder="Dirección" value={form.direccion} onChange={(v) => setForm({ ...form, direccion: v })} />
-              <GlassTextarea placeholder="Notas" value={form.notas} onChange={(v) => setForm({ ...form, notas: v })} />
-
-              {/* 📍 MapaSelector igual que en Visitas */}
-              <MapaSelector
-                value={{
-                  lat: Number(form.latitud) || null,
-                  lng: Number(form.longitud) || null,
-                }}
-                onChange={(pos) =>
-                  setForm({ ...form, latitud: pos.lat, longitud: pos.lng })
-                }
-                height={280}
-              />
-
-              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                <button type="button" className="btn-pill glass" onClick={closeModal}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-pill primary">
-                  {editing ? "Guardar" : "Crear"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ClienteModal
+          editing={editing}
+          form={form}
+          setForm={setForm}
+          onClose={closeModal}
+          onSubmit={submitModal}
+        />
       )}
 
       {/* 🗑️ MODAL CONFIRMAR ELIMINACIÓN */}
@@ -360,6 +358,71 @@ export default function Clientes() {
 }
 
 /* ============================= */
+/* 🔹 Subcomponente del Modal */
+function ClienteModal({ editing, form, setForm, onClose, onSubmit }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background:
+          "radial-gradient(1000px 800px at 20% 10%, rgba(0,153,255,.10), transparent 60%), radial-gradient(900px 700px at 80% 20%, rgba(140,70,255,.10), transparent 65%), rgba(2,8,15,0.65)",
+        backdropFilter: "blur(10px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 460,
+          borderRadius: 16,
+          border: "1px solid rgba(120,180,255,.22)",
+          background:
+            "linear-gradient(180deg, rgba(23,30,40,.82), rgba(18,25,33,.78))",
+          boxShadow:
+            "0 22px 48px rgba(0,0,0,.55), 0 0 36px rgba(0,170,255,.18)",
+          padding: 18,
+        }}
+      >
+        <h3 style={{ color: "#e8f2ff", fontWeight: 800, marginBottom: 14 }}>
+          {editing ? "Editar Cliente" : "Nuevo Cliente"}
+        </h3>
+
+        <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
+          <GlassInput placeholder="Nombre" value={form.nombre} onChange={(v) => setForm({ ...form, nombre: v })} />
+          <GlassInput placeholder="Contacto" value={form.contacto} onChange={(v) => setForm({ ...form, contacto: v })} />
+          <GlassInput placeholder="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+          <GlassInput placeholder="Teléfono" value={form.telefono} onChange={(v) => setForm({ ...form, telefono: v })} />
+          <GlassInput placeholder="Dirección" value={form.direccion} onChange={(v) => setForm({ ...form, direccion: v })} />
+          <GlassTextarea placeholder="Notas" value={form.notas} onChange={(v) => setForm({ ...form, notas: v })} />
+          <MapaSelector
+            value={{
+              lat: Number(form.latitud) || null,
+              lng: Number(form.longitud) || null,
+            }}
+            onChange={(pos) =>
+              setForm({ ...form, latitud: pos.lat, longitud: pos.lng })
+            }
+            height={280}
+          />
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <button type="button" className="btn-pill glass" onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn-pill primary">
+              {editing ? "Guardar" : "Crear"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function GlassInput({ value, onChange, placeholder }) {
   return (
     <div className="btn-pill glass" style={{ display: "flex", overflow: "hidden" }}>

@@ -7,8 +7,11 @@ import Tickets from "../app/routes/tickets.jsx";
 import SupervisorDashboard from "./pages/SupervisorDashboard.jsx";
 import HistoricoKanban from "./pages/HistoricoKanban.jsx";
 import Login from "../app/routes/Login.jsx";
-import Usuarios from "../app/routes/Usuarios.jsx"; // 👈 tu nuevo CRUD
+import Usuarios from "../app/routes/Usuarios.jsx"; // 👈 tu CRUD de usuarios
+import ReporteVisitas from "./reports/ReporteVisitas.jsx"; // 👈 NUEVO: módulo de reportes
 import { isAdmin } from "../app/utils/auth.js";
+import Dashboard from "./pages/Dashboard.jsx";
+import VisitasPorTecnico from "../src/pages/VisitasPorTecnico.jsx";
 
 // ✅ Toastify
 import { ToastContainer } from "react-toastify";
@@ -46,7 +49,13 @@ export default function App() {
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/visitas" element={<SupervisorDashboard />} />
           <Route path="/historicokanban" element={<HistoricoKanban />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+<Route path="/visitas-portecnico" element={<VisitasPorTecnico />} />
+
           <Route path="/tickets" element={<Tickets />} />
+
+          {/* ✅ Nuevo módulo: Reportes */}
+          <Route path="/reportes" element={<ReporteVisitas />} />
 
           {/* Solo admin */}
           <Route
@@ -72,7 +81,7 @@ export default function App() {
         </Routes>
       </div>
 
-      {/* ✅ ¡IMPORTANTE! Montar el contenedor de toasts dentro del árbol */}
+      {/* ✅ Toast container */}
       <ToastContainer position="top-right" autoClose={3000} theme="dark" />
     </div>
   );

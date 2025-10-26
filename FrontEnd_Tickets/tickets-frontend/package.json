@@ -13,7 +13,11 @@
     "@tanstack/react-query": "^5.90.2",
     "axios": "^1.12.2",
     "bootstrap": "^5.3.8",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^12.23.24",
     "isbot": "^5.1.27",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
     "leaflet": "^1.9.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -21,7 +25,8 @@
     "react-native-safe-area-context": "^5.6.1",
     "react-native-screens": "^4.17.1",
     "react-router-dom": "^6.30.1",
-    "react-toastify": "^11.0.5"
+    "react-toastify": "^11.0.5",
+    "recharts": "^3.3.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.4",

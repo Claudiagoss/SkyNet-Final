@@ -1,4 +1,6 @@
 // ✅ src/pages/HistoricoKanban.jsx — versión final con normalización de estado + arrastre funcional
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../../src/components/Sidebar.jsx";
 import {
@@ -136,6 +138,60 @@ export default function HistoricoKanban() {
     }
   }
 
+// ============================================================
+// 🧾 Generar reporte de Visitas Pendientes — versión simplificada
+// ============================================================
+function generarReportePendientes() {
+  const pendientes = tickets.filter(
+    (t) => t.estadoId === 1 || t.estadoId === 2
+  );
+
+  if (!pendientes.length) {
+    push("✅ No hay visitas pendientes actualmente", "info");
+    return;
+  }
+
+  const normalizados = pendientes.map((t) => ({
+    id: t.ticketId,
+    estado: t.estadoId === 1 ? "Abierto" : "En Proceso",
+    prioridad: PRIORIDADES[t.prioridadId] || "—",
+    titulo: t.titulo || t.descripcion || "—",
+    fecha:
+      t.horaIngreso ||
+      t.fechaVisita ||
+      t.fechaCreacion ||
+      t.creadoEl ||
+      "—",
+  }));
+
+  const doc = new jsPDF("landscape");
+  doc.setFontSize(16);
+  doc.text("Reporte de Visitas Pendientes — SkyNet S.A.", 14, 20);
+  doc.setFontSize(10);
+  doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 27);
+  doc.line(14, 30, 280, 30);
+
+  autoTable(doc, {
+    startY: 35,
+    head: [["ID", "Estado", "Prioridad", "Título", "Fecha"]],
+    body: normalizados.map((t) => [
+      t.id,
+      t.estado,
+      t.prioridad,
+      t.titulo,
+      typeof t.fecha === "string"
+        ? t.fecha.slice(0, 10)
+        : new Date(t.fecha).toLocaleDateString(),
+    ]),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [0, 150, 255] },
+  });
+
+  doc.save(`Visitas_Pendientes_${new Date().toISOString().slice(0, 10)}.pdf`);
+  push("📄 Reporte de visitas pendientes generado correctamente", "success");
+}
+
+
   // 🗺️ Ver mapa
   function abrirMapa(t) {
     const lat = Number(t.latitudSalida ?? t.latitudIngreso ?? null) || null;
@@ -180,6 +236,18 @@ export default function HistoricoKanban() {
             {busy && (
               <div style={{ color: "#9fd2ff", fontSize: 12 }}>Guardando...</div>
             )}
+
+<button
+  className="btn-pill glass"
+  style={{ marginLeft: "auto" }}
+  onClick={generarReportePendientes}
+>
+  📄 Visitas Pendientes
+</button>
+
+
+
+
           </header>
 
           {/* 🧱 GRID PRINCIPAL */}

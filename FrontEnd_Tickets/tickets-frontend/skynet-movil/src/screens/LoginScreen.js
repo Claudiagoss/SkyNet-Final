@@ -23,15 +23,31 @@ export default function LoginScreen({ navigation }) {
       const data = await loginUser({ username, password });
 
       console.log("🔐 Respuesta del backend:", data);
-      const { token, usuarioId, usuario, rolId } = data;
 
+      // ✅ Desestructura correctamente el objeto que llega del backend
+      const { token, usuario, rol } = data;
+
+      // 🔎 Verificación
+      console.log("👤 Usuario recibido:", usuario);
+      console.log("🎭 Rol recibido:", rol);
+      console.log("🪪 Token recibido:", token.substring(0, 25) + "...");
+
+      // ✅ Guardamos los datos bien formateados
       await AsyncStorage.setItem("token", token);
       await AsyncStorage.setItem(
         "user",
-        JSON.stringify({ usuarioId, username: usuario, rolId })
+        JSON.stringify({
+          usuarioId: usuario.usuarioId,
+          username: usuario.username,
+          nombre: usuario.nombre,
+          apellido: usuario.apellido,
+          email: usuario.email,
+          rolId: rol.rolId,
+          rolNombre: rol.nombre,
+        })
       );
 
-      Alert.alert("✅ Login exitoso");
+      Alert.alert("✅ Login exitoso", `Bienvenido ${usuario.nombre}`);
       navigation.replace("TecnicoTabs");
     } catch (error) {
       console.error("❌ Error en login:", error);

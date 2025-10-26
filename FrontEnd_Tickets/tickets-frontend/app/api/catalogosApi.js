@@ -1,45 +1,30 @@
-// app/api/catalogosApi.js
 import api from "../config/axios";
 import { isAxiosError } from "axios";
 
-// Normalizador genérico para listas
-function normalizeArrayResponse(respData, keyCandidates = []) {
-  if (!respData) return [];
-  if (Array.isArray(respData)) return respData;
-  for (const key of keyCandidates) {
-    if (Array.isArray(respData[key])) return respData[key];
-  }
-  if (Array.isArray(respData.data)) return respData.data;
-  if (Array.isArray(respData.items)) return respData.items;
-  return [];
+function normalizeArrayResponse(data, keys = []) {
+  if (Array.isArray(data)) return data;
+  for (const key of keys) if (Array.isArray(data[key])) return data[key];
+  return data?.data || [];
 }
 
-// ESTADOS
 export async function obtenerEstados() {
   try {
-    const resp = await api.get("/catalogos/estados");
-    // Intenta: estados, data, items, array directo
-    return normalizeArrayResponse(resp.data, ["estados"]);
+    const { data } = await api.get("/catalogos/estados");
+    return normalizeArrayResponse(data, ["estados"]);
   } catch (e) {
-    console.error("obtenerEstados error:", e);
-    if (isAxiosError(e) && e.response) {
-      throw new Error(e.response.data?.error || e.response.data?.message || "Error al obtener estados");
-    }
+    if (isAxiosError(e) && e.response)
+      throw new Error(e.response.data?.message || "Error al obtener estados");
     throw e;
   }
 }
 
-// PRIORIDADES
 export async function obtenerPrioridades() {
   try {
-    const resp = await api.get("/catalogos/prioridades");
-    // Intenta: prioridades, data, items, array directo
-    return normalizeArrayResponse(resp.data, ["prioridades"]);
+    const { data } = await api.get("/catalogos/prioridades");
+    return normalizeArrayResponse(data, ["prioridades"]);
   } catch (e) {
-    console.error("obtenerPrioridades error:", e);
-    if (isAxiosError(e) && e.response) {
-      throw new Error(e.response.data?.error || e.response.data?.message || "Error al obtener prioridades");
-    }
+    if (isAxiosError(e) && e.response)
+      throw new Error(e.response.data?.message || "Error al obtener prioridades");
     throw e;
   }
 }

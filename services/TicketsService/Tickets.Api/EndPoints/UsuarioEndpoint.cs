@@ -1,148 +1,119 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
+﻿using Microsoft.AspNetCore.Mvc;
+using System.Net.Http.Json;
 using Tickets.Api.DTOs.Usuarios;
-using Tickets.Api.Entidades;
-using Tickets.Api.Repositorios;
 
-namespace Tickets.Api.EndPoints;
-
-public static class UsuarioEndpoint
+namespace Tickets.Api.EndPoints
 {
-    public static RouteGroupBuilder MapUsuarios(this RouteGroupBuilder group)
+    public static class UsuarioEndpoint
     {
-        group.MapPost("/usuarios", CrearUsuario);
-        group.MapGet("/usuarios", ObtenerTodos);
-        group.MapPut("/usuarios/{id:int}", ActualizarUsuario);
-        group.MapDelete("/usuarios/{id:int}", EliminarUsuario);
-        return group;
-    }
-
-    // ✅ CREAR USUARIO — ahora devuelve todos los duplicados juntos
-    // ✅ CREAR USUARIO — ahora devuelve todos los duplicados juntos
-    static async Task<IResult> CrearUsuario(CrearUsuarioDTO dto, IRepositorioUsuario repo)
-    {
-        // 🔸 1. Verificar duplicado de Username primero
-        var duplicadoUsername = await repo.ObtenerPorUsername(dto.Username);
-        if (duplicadoUsername is not null)
-            return TypedResults.Conflict(new
-            {
-                field = "username",
-                code = "duplicate",
-                message = $"El usuario \"{dto.Username}\" ya existe."
-            });
-
-        // 🔸 2. Verificar duplicado de Email después (no simultáneo)
-        var duplicadoEmail = await repo.ObtenerPorEmail(dto.Email);
-        if (duplicadoEmail is not null)
-            return TypedResults.Conflict(new
-            {
-                field = "email",
-                code = "duplicate",
-                message = $"El correo \"{dto.Email}\" ya está registrado."
-            });
-
-        // ✅ Crear nuevo usuario
-        var u = new Usuario
+        public static RouteGroupBuilder MapUsuarios(this RouteGroupBuilder group)
         {
-            Nombre = dto.Nombre,
-            Apellido = dto.Apellido,
-            Email = dto.Email,
-            Telefono = dto.Telefono,
-            Username = dto.Username,
-            PasswordHash = dto.PasswordHash,
-            RolId = dto.RolId,
-            EsActivo = true,
-            CreadoEl = DateTime.UtcNow
-        };
-
-        var id = await repo.Crear(u);
-
-        return TypedResults.Created($"/usuarios/{id}", new
-        {
-            usuarioId = id,
-            message = "Usuario creado correctamente"
-        });
-    }
-
-    // ✅ OBTENER TODOS LOS USUARIOS
-    static async Task<Ok<List<GetAllUsuariosDTO>>> ObtenerTodos(IRepositorioUsuario repo)
-    {
-        var lista = await repo.ObtenerTodos();
-        var dto = lista.Select(u => new GetAllUsuariosDTO
-        {
-            UsuarioId = u.UsuarioId,
-            Nombre = u.Nombre,
-            Apellido = u.Apellido,
-            Email = u.Email,
-            Telefono = u.Telefono,
-            Username = u.Username,
-            RolId = u.RolId,
-            EsActivo = u.EsActivo
-        }).ToList();
-
-        return TypedResults.Ok(dto);
-    }
-
-    // ✅ ACTUALIZAR USUARIO — devuelve múltiples errores si hay duplicados
-    static async Task<IResult> ActualizarUsuario(int id, ActualizarUsuarioDTO dto, IRepositorioUsuario repo)
-    {
-        var existente = await repo.ObtenerPorId(id);
-        if (existente is null)
-            return TypedResults.NotFound(new { message = "Usuario no encontrado." });
-
-        // Consultas en paralelo
-        var tUser = repo.ObtenerPorUsername(dto.Username);
-        var tMail = repo.ObtenerPorEmail(dto.Email);
-        await Task.WhenAll(tUser, tMail);
-
-        var errores = new List<object>();
-
-        if (tUser.Result is not null && tUser.Result.UsuarioId != id)
-            errores.Add(new
-            {
-                field = "username",
-                code = "duplicate",
-                message = $"El usuario \"{dto.Username}\" ya está en uso."
-            });
-
-        if (tMail.Result is not null && tMail.Result.UsuarioId != id)
-            errores.Add(new
-            {
-                field = "email",
-                code = "duplicate",
-                message = $"El correo \"{dto.Email}\" ya está registrado."
-            });
-
-        if (errores.Count > 0)
-            return TypedResults.Conflict(new { errors = errores });
-
-        // ✅ Actualizar datos básicos
-        existente.Nombre = dto.Nombre;
-        existente.Apellido = dto.Apellido;
-        existente.Email = dto.Email;
-        existente.Telefono = dto.Telefono;
-        existente.Username = dto.Username;
-        existente.RolId = dto.RolId;
-        existente.EsActivo = dto.EsActivo;
-        existente.ActualizadoEl = DateTime.UtcNow;
-
-        // ✅ Solo cambiar contraseña si se envía una nueva
-        if (!string.IsNullOrWhiteSpace(dto.PasswordHash))
-        {
-            existente.PasswordHash = dto.PasswordHash;
+            group.MapPost("/usuarios", CrearUsuario);
+            group.MapGet("/usuarios", ObtenerTodos);
+            group.MapPut("/usuarios/{id:int}", ActualizarUsuario);
+            group.MapDelete("/usuarios/{id:int}", EliminarUsuario);
+            return group;
         }
 
-        await repo.Actualizar(existente);
-        return TypedResults.Ok(new { message = "Usuario actualizado correctamente" });
-    }
+        // ===============================================================
+        // ✅ URL del AuthService centralizado
+        // ===============================================================
+        private const string AUTH_SERVICE_URL =
+            "https://skynet-authservice-debtbpcjcxd7c5cw.canadacentral-01.azurewebsites.net/api/Usuarios";
 
-    // ✅ ELIMINAR USUARIO — respuesta elegante
-    static async Task<IResult> EliminarUsuario(int id, IRepositorioUsuario repo)
-    {
-        var existe = await repo.ObtenerPorId(id);
-        if (existe is null)
-            return TypedResults.NotFound(new { message = "Usuario no existe o ya fue eliminado." });
+        // ===============================================================
+        // 🔹 CREAR USUARIO
+        // ===============================================================
+        static async Task<IResult> CrearUsuario(CrearUsuarioDTO dto, HttpClient client)
+        {
+            try
+            {
+                Console.WriteLine($"[TicketsService] 🔁 Enviando creación de usuario a AuthService: {dto.Email}");
 
-        await repo.Eliminar(id);
-        return TypedResults.Ok(new { message = "Usuario eliminado correctamente" });
+                var res = await client.PostAsJsonAsync(AUTH_SERVICE_URL, dto);
+
+                if (!res.IsSuccessStatusCode)
+                {
+                    var err = await res.Content.ReadAsStringAsync();
+                    Console.WriteLine($"❌ Error AuthService: {err}");
+                    return Results.Problem($"Error al crear usuario: {err}", statusCode: (int)res.StatusCode);
+                }
+
+                var data = await res.Content.ReadFromJsonAsync<object>();
+                return Results.Created("/usuarios", data);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error proxy al AuthService: {ex.Message}");
+                return Results.Problem(ex.Message);
+            }
+        }
+
+        // ===============================================================
+        // 🔹 OBTENER TODOS LOS USUARIOS
+        // ===============================================================
+        static async Task<IResult> ObtenerTodos(HttpClient client)
+        {
+            try
+            {
+                var usuarios = await client.GetFromJsonAsync<List<GetAllUsuariosDTO>>(AUTH_SERVICE_URL);
+                return Results.Ok(usuarios);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error obteniendo usuarios desde AuthService: {ex.Message}");
+                return Results.Problem("No se pudieron obtener los usuarios.");
+            }
+        }
+
+        // ===============================================================
+        // 🔹 ACTUALIZAR USUARIO
+        // ===============================================================
+        static async Task<IResult> ActualizarUsuario(int id, ActualizarUsuarioDTO dto, HttpClient client)
+        {
+            try
+            {
+                var res = await client.PutAsJsonAsync($"{AUTH_SERVICE_URL}/{id}", dto);
+
+                if (!res.IsSuccessStatusCode)
+                {
+                    var err = await res.Content.ReadAsStringAsync();
+                    Console.WriteLine($"❌ Error actualizando en AuthService: {err}");
+                    return Results.Problem(err, statusCode: (int)res.StatusCode);
+                }
+
+                return Results.Ok(new { message = "Usuario actualizado correctamente (vía AuthService)" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error proxy al AuthService: {ex.Message}");
+                return Results.Problem(ex.Message);
+            }
+        }
+
+        // ===============================================================
+        // 🔹 ELIMINAR USUARIO
+        // ===============================================================
+        static async Task<IResult> EliminarUsuario(int id, HttpClient client)
+        {
+            try
+            {
+                var res = await client.DeleteAsync($"{AUTH_SERVICE_URL}/{id}");
+
+                if (!res.IsSuccessStatusCode)
+                {
+                    var err = await res.Content.ReadAsStringAsync();
+                    Console.WriteLine($"❌ Error eliminando en AuthService: {err}");
+                    return Results.Problem(err, statusCode: (int)res.StatusCode);
+                }
+
+                return Results.Ok(new { message = "Usuario eliminado correctamente (vía AuthService)" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error proxy al AuthService: {ex.Message}");
+                return Results.Problem(ex.Message);
+            }
+        }
     }
 }

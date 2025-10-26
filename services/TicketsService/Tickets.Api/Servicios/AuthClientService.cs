@@ -1,13 +1,12 @@
-﻿using System.Net.Http.Headers;
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using Tickets.Api.Entidades;
 
 namespace Tickets.Api.Servicios
 {
     public interface IAuthClientService
     {
-        Task<Dictionary<int, string>> ObtenerDiccionarioUsuariosAsync(string? token = null);
-        Task<UsuarioInfo?> ObtenerUsuarioPorIdAsync(int usuarioId, string? token = null);
+        Task<Dictionary<int, string>> ObtenerDiccionarioUsuariosAsync();
+        Task<UsuarioInfo?> ObtenerUsuarioPorIdAsync(int usuarioId);
     }
 
     public class AuthClientService : IAuthClientService
@@ -17,22 +16,17 @@ namespace Tickets.Api.Servicios
         public AuthClientService(HttpClient http)
         {
             _http = http;
-            _http.BaseAddress = new Uri("http://localhost:5090/api/usuarios/");
+            // 🔹 Si tu AuthService corre en otro puerto, cámbialo aquí:
+            _http.BaseAddress = new Uri("http://localhost:5057/api/usuarios");
         }
 
         // ================================================================
-        // 🔹 Devuelve todos los usuarios (requiere token JWT)
+        // 🔹 Devuelve todos los usuarios como diccionario (id → nombre)
         // ================================================================
-        public async Task<Dictionary<int, string>> ObtenerDiccionarioUsuariosAsync(string? token = null)
+        public async Task<Dictionary<int, string>> ObtenerDiccionarioUsuariosAsync()
         {
             try
             {
-                if (!string.IsNullOrEmpty(token))
-                {
-                    _http.DefaultRequestHeaders.Authorization =
-                        new AuthenticationHeaderValue("Bearer", token);
-                }
-
                 var usuarios = await _http.GetFromJsonAsync<List<UsuarioInfo>>("");
                 return usuarios?
                     .ToDictionary(u => u.UsuarioId, u => $"{u.Nombre} {u.Apellido}".Trim())
@@ -46,19 +40,13 @@ namespace Tickets.Api.Servicios
         }
 
         // ================================================================
-        // 🔹 Obtener un usuario por su ID (requiere token JWT)
+        // 🔹 Obtener un usuario por su ID
         // ================================================================
-        public async Task<UsuarioInfo?> ObtenerUsuarioPorIdAsync(int usuarioId, string? token = null)
+        public async Task<UsuarioInfo?> ObtenerUsuarioPorIdAsync(int usuarioId)
         {
             try
             {
-                if (!string.IsNullOrEmpty(token))
-                {
-                    _http.DefaultRequestHeaders.Authorization =
-                        new AuthenticationHeaderValue("Bearer", token);
-                }
-
-                return await _http.GetFromJsonAsync<UsuarioInfo>($"{usuarioId}");
+                return await _http.GetFromJsonAsync<UsuarioInfo>($"/{usuarioId}");
             }
             catch
             {
@@ -67,6 +55,9 @@ namespace Tickets.Api.Servicios
         }
     }
 
+    // ================================================================
+    // 🔹 DTO local para los datos del AuthService
+    // ================================================================
     public class UsuarioInfo
     {
         public int UsuarioId { get; set; }

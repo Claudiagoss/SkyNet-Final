@@ -634,3 +634,121 @@
   box-shadow: 0 0 15px rgba(0, 255, 136, 0.7);
   transform: scale(1.1);
 }
+/* ============================
+   Botones estilo Glass modernos
+============================ */
+.btn-glass {
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  font-weight: 600;
+  transition: all 0.2s ease-in-out;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 12px rgba(0, 150, 255, 0.2);
+}
+
+.btn-glass:hover {
+  transform: scale(1.05);
+  background: rgba(0, 150, 255, 0.2);
+}
+
+.btn-glass.primary {
+  background: linear-gradient(90deg, #007bff, #00bfff);
+}
+
+.btn-glass.secondary {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btn-glass.info {
+  background: rgba(0, 200, 255, 0.25);
+}
+
+/* ============================
+   Contenedor de encabezado
+============================ */
+.header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.2rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.8rem;
+}
+/* ============================================================
+   ⚙️ Ajuste de columnas en SupervisorDashboard
+   ============================================================ */
+.vd-table {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+
+/* ✅ Encabezado y filas distribuidas uniformemente */
+.vd-thead,
+.vd-row {
+  display: grid;
+  grid-template-columns: 0.5fr 2fr 2.5fr 1.8fr; /* ID | Cliente | Título | Acciones */
+  align-items: center;
+  text-align: left;
+  padding: 10px 18px;
+}
+
+/* Encabezado */
+.vd-thead {
+  font-weight: 600;
+  color: #9fd2ff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Filas */
+.vd-row {
+  margin-top: 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.2s ease;
+}
+.vd-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ✅ Alineación de la columna de acciones */
+.vd-row .td.mapa,
+.vd-thead .th.mapa {
+  text-align: center;
+  justify-content: center;
+  display: flex;
+  gap: 10px;
+}
+
+/* Íconos más equilibrados */
+.glass-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  transition: 0.25s;
+}
+.glass-icon:hover {
+  transform: scale(1.05);
+  background: rgba(0, 150, 255, 0.15);
+}
+
+/* Botón de Mapa más compacto */
+.radar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  border-radius: 10px;
+  padding: 6px 10px;
+}

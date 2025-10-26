@@ -52,17 +52,22 @@ namespace AuthService.Controllers
                 if (string.IsNullOrWhiteSpace(dto.Nombre) || string.IsNullOrWhiteSpace(dto.Email))
                     return BadRequest("Nombre y Email son obligatorios.");
 
-                var usuario = new Usuario
-                {
-                    Nombre = dto.Nombre,
-                    Apellido = "",
-                    Email = dto.Email,
-                    Telefono = "N/A",
-                    Username = dto.Email.Split('@')[0],
-                    PasswordHash = "default123",
-                    EsActivo = true,
-                    RolId = dto.RolId == 0 ? 2 : dto.RolId // 👈 Asigna rol por defecto si viene vacío
-                };
+               var usuario = new Usuario
+{
+    Nombre = dto.Nombre,
+    Apellido = dto.Apellido ?? "",
+    Email = dto.Email,
+    Telefono = dto.Telefono ?? "N/A",
+    Username = string.IsNullOrWhiteSpace(dto.Username)
+        ? dto.Email.Split('@')[0]
+        : dto.Username,
+    PasswordHash = string.IsNullOrWhiteSpace(dto.PasswordHash)
+        ? "default123"
+        : dto.PasswordHash,
+    EsActivo = true,
+    RolId = dto.RolId == 0 ? 2 : dto.RolId
+};
+
 
                 var creado = await _repo.Crear(usuario);
                 Console.WriteLine($"✅ Usuario creado con ID: {creado.UsuarioId}");

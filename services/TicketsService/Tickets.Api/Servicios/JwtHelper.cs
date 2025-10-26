@@ -4,42 +4,60 @@ namespace Tickets.Api.Servicios
 {
     public static class JwtHelper
     {
-        // ================================================================
-        // 🔹 OBTENER ID DEL USUARIO (claim "id")
-        // ================================================================
+        /// <summary>
+        /// Obtiene el ID numérico del usuario desde el token JWT.
+        /// </summary>
         public static int ObtenerUsuarioId(HttpContext context)
         {
-            // Buscar el claim correcto ("id" del token)
-            var idClaim = context.User.FindFirst("id")?.Value;
+            try
+            {
+                // 🔹 Busca primero el claim "id" (usado en tu AuthService)
+                var idClaim = context.User.Claims.FirstOrDefault(c => c.Type == "id")?.Value;
 
-            if (int.TryParse(idClaim, out int usuarioId))
-                return usuarioId;
+                // 🔹 Si no existe, intenta buscar el estándar "NameIdentifier"
+                if (string.IsNullOrEmpty(idClaim))
+                    idClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            // ⚠️ Si no se encuentra o no es numérico, log y retornar 0
-            Console.WriteLine($"⚠️ Claim 'id' inválido o ausente. Valor: {idClaim}");
-            return 0;
+                if (string.IsNullOrEmpty(idClaim))
+                    throw new Exception("No se encontró el claim 'id' o 'NameIdentifier' en el token JWT.");
+
+                if (int.TryParse(idClaim, out int userId))
+                    return userId;
+
+                throw new FormatException($"El claim de usuario ('{idClaim}') no es un número válido.");
+            }
+            catch (Exception ex)
+            {
+                // 🔹 Log para diagnóstico en Azure (Application Insights o consola)
+                Console.WriteLine($"[JwtHelper] Error al obtener el UsuarioId: {ex.Message}");
+                return 0; // Evita crash, devuelve 0 por seguridad
+            }
         }
 
-        // ================================================================
-        // 🔹 OBTENER ID DEL ROL (claim "rol")
-        // ================================================================
+        /// <summary>
+        /// Obtiene el rol numérico del usuario desde el token JWT.
+        /// </summary>
         public static int ObtenerRolId(HttpContext context)
         {
-            var rolClaim = context.User.FindFirst("rol")?.Value;
+            try
+            {
+                // 🔹 Busca el claim "rol" o el estándar "Role"
+                var rolClaim = context.User.Claims.FirstOrDefault(c => c.Type == "rol")?.Value
+                               ?? context.User.FindFirst(ClaimTypes.Role)?.Value;
 
-            if (int.TryParse(rolClaim, out int rolId))
-                return rolId;
+                if (string.IsNullOrEmpty(rolClaim))
+                    throw new Exception("No se encontró el claim 'rol' o 'Role' en el token JWT.");
 
-            Console.WriteLine($"⚠️ Claim 'rol' inválido o ausente. Valor: {rolClaim}");
-            return 0;
-        }
+                if (int.TryParse(rolClaim, out int rolId))
+                    return rolId;
 
-        // ================================================================
-        // 🔹 OBTENER EMAIL (claim "email") — opcional
-        // ================================================================
-        public static string? ObtenerEmail(HttpContext context)
-        {
-            return context.User.FindFirst("email")?.Value;
+                throw new FormatException($"El claim de rol ('{rolClaim}') no es un número válido.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[JwtHelper] Error al obtener el RolId: {ex.Message}");
+                return 0;
+            }
         }
     }
 }
